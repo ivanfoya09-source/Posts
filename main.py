@@ -16,6 +16,9 @@ from forms import SignIn, SignUp, Postform
 load_dotenv()
 
 app = Flask(__name__)
+
+
+
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_URI")
 app.config["CACHE_TYPE"] = "SimpleCache"
 app.config["CACHE_DEFAULT_TIMEOUT"] = 10
@@ -52,17 +55,20 @@ cache = Cache(app)
 @cache.cached(timeout=15, key_prefix="posts_")
 def get_current_user(id: int):
     print("Робимо запит до бази даних...")
+    app.logger.info("Робимо запит до БД...")
     return User.query.filter_by(id=id).first()
 
 
-# @csrf_protect.exempt
+
 @app.route("/sign-up/", methods=["GET", "POST"])
+# @csrf_protect.exempt
 def sign_up():
     if request.method == "POST":
         username = request.form.get("username")
         user = User.query.filter_by(username=username).first()
         if user:
             flash (f"Користувач з логіном '{username}' вже існує")
+            app.logger.warning(f"Користувач з логіном '{username}' вже існує")
             return redirect(url_for("sign_up"))
         
         print("not user")
@@ -75,7 +81,10 @@ def sign_up():
         db.session.add(user)
         db.session.commit()
         flash(f"Користувача з логіном '{username}' успішно заареєстровано")
+        app.logger.info(f"Користувача з логіном '{username}' успішно заареєстровано")
         return redirect(url_for("sign_in"))
+    
+    app.logger.info("Процес реєстації...")
     return render_template("sign_up.html")
 
 
@@ -91,9 +100,11 @@ def sign_in():
         print(user, user.is_verify_password(password), user.is_active)
         if not user or not user.is_verify_password(password) or not user.is_active:
             flash("Логін або пароль невірні")
+            app.logger.error(f"Хтось ламає наш сервіс")
             return redirect(url_for("sign_in"))
         
         login_user(user)
+        app.logger.info(f"Ура!!! Користувач {username} успішно увійшов у систему")
         return redirect(url_for("index"))
     return render_template("sign_in.html")
 
@@ -102,11 +113,12 @@ def sign_in():
 @login_required
 def logout():
     flash(f"Коистувач {current_user.username} успішно вийшов із системи")
+    app.logger.info(f"Коистувач {current_user.username} успішно вийшов із системи")
     logout_user()
     return redirect(url_for("sign_in"))
 
 
-@csrf_protect.exempt
+# @csrf_protect.exempt
 @app.route("/add-post/", methods=["GET", "POST"])
 @login_required
 def add_post():
